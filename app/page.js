@@ -1,68 +1,101 @@
 "use client";
 import { Stack, Box, Modal, Button, Typography, TextField, IconButton } from "@mui/material";
-import { firestore } from "./firebase";
-import { collection, getDocs, query, addDoc, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import { useEffect, useState } from "react";
+import { getPantryItems, addOrUpdateItem, removeItem, updateItemQuantity, updateItemName } from "./components/handle";
 
 export default function Home() {
   const [pantry, setPantry] = useState([]);
-  const [open, setOpen] = useState(false);
+  const [openAddModal, setOpenAddModal] = useState(false);
+  const [openEditModal, setOpenEditModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [newItem, setNewItem] = useState("");
   const [quantity, setQuantity] = useState(1);
+  const [editingItem, setEditingItem] = useState(null);
+  const [editedItemName, setEditedItemName] = useState("");
 
-  const handleOpen = () => setOpen(true);
-  const handleClose = () => setOpen(false);
+  const handleOpenAddModal = () => setOpenAddModal(true);
+  const handleCloseAddModal = () => setOpenAddModal(false);
+
+  const handleOpenEditModal = (item) => {
+    setEditingItem(item);
+    setEditedItemName(item.name);
+    setOpenEditModal(true);
+  };
+  
+  const handleCloseEditModal = () => setOpenEditModal(false);
 
   const handleAddItem = async () => {
-    if (newItem.trim()) {
-      await addDoc(collection(firestore, "pantry"), { name: newItem, quantity });
+    try {
+      await addOrUpdateItem(newItem, quantity, pantry);
       setNewItem("");
       setQuantity(1);
-      handleClose();
+      handleCloseAddModal();
       updatePantry();
+    } catch (error) {
+      console.error("Error adding or updating the item in Pantry: ", error);
+    }
+  };
+
+  const handleUpdateItemName = async () => {
+    if (!editingItem) return;
+
+    try {
+      const trimmedName = editedItemName.trim().toLowerCase();
+      if (trimmedName === "") {
+        alert("Item name cannot be empty.");
+        return;
+      }
+
+      await updateItemName(editingItem.id, trimmedName);
+      setEditingItem(null);
+      setEditedItemName("");
+      handleCloseEditModal();
+      updatePantry();
+    } catch (error) {
+      console.error("Error updating the item name: ", error);
     }
   };
 
   const handleRemoveItem = async (id) => {
-    const docRef = doc(firestore, "pantry", id);
-    await deleteDoc(docRef);
-    updatePantry();
+    try {
+      await removeItem(id);
+      updatePantry();
+    } catch (error) {
+      console.error("Error removing the item from Pantry: ", error);
+    }
   };
 
   const handleUpdateQuantity = async (id, newQuantity) => {
-    const docRef = doc(firestore, "pantry", id);
-    await updateDoc(docRef, { quantity: newQuantity });
-    updatePantry();
+    try {
+      await updateItemQuantity(id, newQuantity);
+      updatePantry();
+    } catch (error) {
+      console.error("Error updating the item quantity in Pantry: ", error);
+    }
   };
 
   const updatePantry = async () => {
-    const snapshot = query(collection(firestore, "pantry"));
-    const docs = await getDocs(snapshot);
-    const pantryList = [];
-    docs.forEach((doc) => {
-      pantryList.push({ id: doc.id, ...doc.data() });
-    });
-    setPantry(pantryList);
+    try {
+      const pantryList = await getPantryItems();
+      setPantry(pantryList);
+    } catch (error) {
+      console.error("Error fetching pantry items: ", error);
+    }
   };
 
   useEffect(() => {
     updatePantry();
   }, []);
-  
+
   const filteredPantry = pantry.filter((item) =>
     item.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleSearch = (e) => {
     setSearchTerm(e.target.value);
-    if (filteredPantry.length === 0) {
-      alert("Item not found in pantry");
-      setSearchTerm("");
-    }
   };
 
-  const style = {
+  const modalStyle = {
     position: 'absolute',
     top: '50%',
     left: '50%',
@@ -85,24 +118,19 @@ export default function Home() {
       flexDirection={"column"}
       justifyContent={"center"}
       alignItems={"center"}
+      sx={{
+        backgroundImage: 'url(/wall.png)',
+        backgroundSize: 20,
+      }}
     >
-      {pantry.length > 0 && (
-        <TextField
-          label="Search Pantry"
-          variant="outlined"
-          value={searchTerm}
-          onChange={handleSearch}
-          sx={{ marginBottom: 2 }}
-        />
-      )}
       <Modal
-        open={open}
-        onClose={handleClose}
-        aria-labelledby="modal-modal-title"
-        aria-describedby="modal-modal-description"
+        open={openAddModal}
+        onClose={handleCloseAddModal}
+        aria-labelledby="modal-add-item-title"
+        aria-describedby="modal-add-item-description"
       >
-        <Box sx={style}>
-          <Typography id="modal-modal-title" variant="h6" component="h2">
+        <Box sx={modalStyle}>
+          <Typography id="modal-add-item-title" variant="h6" component="h2">
             Add New Item
           </Typography>
           <TextField
@@ -120,41 +148,108 @@ export default function Home() {
               onChange={(e) => setQuantity(Number(e.target.value))}
             />
           )}
-          <Button variant="contained" onClick={handleAddItem}>
+          <Button 
+           variant="contained"
+           sx={{ backgroundColor: 'lightgrey', color: "black", '&:hover': { backgroundColor: 'grey' } }}
+           onClick={handleAddItem}>
             Add
           </Button>
         </Box>
       </Modal>
-      <Button variant="contained" onClick={handleOpen} >
-        Add
-      </Button>
-      <Box border={"1px solid #333"}>
-        <Box
-          width="800px"
-          height="100px"
-          bgcolor={"#ADD8E6"}
-          display={"flex"}
-          justifyContent={"center"}
-          alignItems={"center"}
-        >
-          <Typography variant={"h2"} color={"#333"} textAlign={"center"} sx={{ fontFamily: 'Arial' }}>
-            Pantry Items
+
+      <Modal
+        open={openEditModal}
+        onClose={handleCloseEditModal}
+        aria-labelledby="modal-edit-item-title"
+        aria-describedby="modal-edit-item-description"
+      >
+        <Box sx={modalStyle}>
+          <Typography id="modal-edit-item-title" variant="h6" component="h2">
+            Edit Item Name
           </Typography>
+          <TextField
+            label="New Item Name"
+            variant="outlined"
+            value={editedItemName}
+            onChange={(e) => setEditedItemName(e.target.value)}
+          />
+          <Button variant="contained" 
+            sx={{ backgroundColor: 'lightgrey', color: "black", '&:hover': { backgroundColor: 'grey' } }}
+            onClick={handleUpdateItemName}>
+            Update
+          </Button>
         </Box>
-        <Stack width="800px" height="500px" spacing={2} overflow={"auto"}>
+      </Modal>
+
+      <Box
+        width="800px"
+        height="100px"
+        display={"flex"}
+        flexDirection={"column"}
+        alignItems={"center"}
+        justifyContent={"center"}
+        sx={{
+          borderRadius: 2,
+          backgroundImage: 'url(/box.png)',
+          backgroundSize: 20,
+        }}
+      >
+        <Typography variant={"h2"} color={"black"} textAlign={"center"} sx={{ fontFamily: 'Serif' }}>
+          PANTRY ITEMS
+        </Typography>
+      </Box>
+
+      <Box
+        display={"flex"}
+        flexDirection={"row"}
+        alignItems={"center"}
+        justifyContent={"center"}
+        gap={2}
+        my={2}
+        width={"1000px"}
+      >
+        <TextField
+          label="Search Pantry"
+          variant="outlined"
+          value={searchTerm}
+          onChange={handleSearch}
+        />
+        <Button variant="contained"
+         sx={{ backgroundColor: 'lightgrey', color: "black", '&:hover': { backgroundColor: 'grey' } }}
+         onClick={handleOpenAddModal}>
+          Add
+        </Button>
+      </Box>
+
+      <Box
+        sx={{
+          backgroundImage: 'url(/box.png)',
+          borderRadius: 2,
+          backgroundSize: 20,
+          width: "800px",
+          maxHeight: "500px",
+          overflowY: "auto",
+        }}
+      >
+        <Stack spacing={2}>
           {filteredPantry.map((item) => (
             <Box
               key={item.id}
               width="100%"
-              height="100px"
+              height="80px"
               display={"flex"}
               justifyContent={"space-between"}
               alignItems={"center"}
-              bgcolor={"#f0f0f0"}
-              px={2}
-              sx={{ fontFamily: '"Brush Script MT", cursive' }}
+              sx={{
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                bgcolor: 'transparent',
+                px: 2,
+                borderBottom: '10px solid lightgrey',
+                fontFamily: '"Brush Script MT", cursive',
+              }}
             >
-              <Typography variant={"h4"} color={"#333"} textAlign={"center"}>
+              <Typography variant={"h4"} color={"black"} textAlign={"center"}>
                 {item.name.charAt(0).toUpperCase() + item.name.slice(1)}
               </Typography>
               <Box display={"flex"} alignItems={"center"} gap={2}>
@@ -165,8 +260,19 @@ export default function Home() {
                 <IconButton onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}>
                   +
                 </IconButton>
-                <Button variant="contained" color="secondary" onClick={() => handleRemoveItem(item.id)}>
-                  Remove
+                <Button
+                  variant="contained"
+                  sx={{ backgroundColor: 'lightgrey', color: "black", '&:hover': { backgroundColor: 'grey' } }}
+                  onClick={() => handleRemoveItem(item.id)}
+                >
+                Remove
+                </Button>
+                <Button 
+                  variant="contained" 
+
+                  sx={{ backgroundColor: 'lightgrey', color: "black", '&:hover': { backgroundColor: 'grey' } }}
+                  onClick={() => handleOpenEditModal(item)}>
+                  Edit
                 </Button>
               </Box>
             </Box>
