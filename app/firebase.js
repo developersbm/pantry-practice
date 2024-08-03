@@ -2,13 +2,13 @@ import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
+  apiKey: "AIzaSyAu_Zcc10DEJV1n57FOQJgfSLRZPLJJYq4",
+  authDomain: "pantry-practice.firebaseapp.com",
+  projectId: "pantry-practice",
+  storageBucket: "pantry-practice.appspot.com",
+  messagingSenderId: "862242709340",
+  appId: "1:862242709340:web:5cc11e3979fe8103422b99",
+  measurementId: "G-X97QNJEZLY"
 };
 
 const app = initializeApp(firebaseConfig);
